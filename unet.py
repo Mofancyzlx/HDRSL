@@ -3,7 +3,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from Attention_module import CBAMBlock, SpatialAttention_WH, ChannelAttention_WH
+
+# from Attention_module import CBAMBlock, SpatialAttention_WH, ChannelAttention_WH
+
+from Attention_module import ChannelAttention_WH, SpatialAttention_WH, ChannelAttention_WH
 
 
 class DoubleConv(nn.Module):
