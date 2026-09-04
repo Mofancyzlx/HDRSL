@@ -1051,7 +1051,7 @@ def main():
         12,
         8,
         False,
-    ).to(device)
+    ).to(device) # 8 通道 LDR images + 4 通道 HDR images = 12 通道输入，输出 8 通道的 S/C 图像
 
     # ========================================================
     # Loss

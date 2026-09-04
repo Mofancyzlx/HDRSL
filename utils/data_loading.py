@@ -86,34 +86,34 @@ class BasicDataset(Dataset):
             img = img.transpose((2, 0, 1))
         if flag:
             if (img > 1).any():
-                img = img / 255.0
+                img = img / 255.0 # 对灰度图进行归一化
 
         return img
 
     def __getitem__(self, idx):
         name = self.sub_dirs[idx]
         # imgs
-        img_path_1 = os.path.join(self.images_dir, name, f'{name}_1.bmp')
+        img_path_1 = os.path.join(self.images_dir, name, f'{name}_1.bmp') # HDR GT，4个频段的四张照片，path_1~4分别对应4个频段的照片
         img_path_2 = os.path.join(self.images_dir, name, f'{name}_2.bmp')
         img_path_3 = os.path.join(self.images_dir, name, f'{name}_3.bmp')
         img_path_4 = os.path.join(self.images_dir, name, f'{name}_4.bmp')
         # masks fenzi
-        fenzi_mask_path_1 = os.path.join(self.mask_dir_fenzi, f'{name}-1.mat')
+        fenzi_mask_path_1 = os.path.join(self.mask_dir_fenzi, f'{name}-1.mat') # 正弦分量S，4个频段的四张照片，path_1~4分别对应4个频段的照片
         fenzi_mask_path_2 = os.path.join(self.mask_dir_fenzi, f'{name}-2.mat')
         fenzi_mask_path_3 = os.path.join(self.mask_dir_fenzi, f'{name}-3.mat')
         fenzi_mask_path_4 = os.path.join(self.mask_dir_fenzi, f'{name}-4.mat')
         # mask fenmu
-        fenmu_mask_path_1 = os.path.join(self.mask_dir_fenmu, f'{name}-1.mat')
+        fenmu_mask_path_1 = os.path.join(self.mask_dir_fenmu, f'{name}-1.mat') # 余弦分量C，4个频段的四张照片，path_1~4分别对应4个频段的照片
         fenmu_mask_path_2 = os.path.join(self.mask_dir_fenmu, f'{name}-2.mat')
         fenmu_mask_path_3 = os.path.join(self.mask_dir_fenmu, f'{name}-3.mat')
         fenmu_mask_path_4 = os.path.join(self.mask_dir_fenmu, f'{name}-4.mat')
         # img_aug
-        img_aug_low_path_1 = os.path.join(self.images_aug_low_dir, name, f'{name}_1.bmp')
+        img_aug_low_path_1 = os.path.join(self.images_aug_low_dir, name, f'{name}_1.bmp') # 短曝光，4个频段的四张照片，path_1~4分别对应4个频段的照片
         img_aug_low_path_2 = os.path.join(self.images_aug_low_dir, name, f'{name}_2.bmp')
         img_aug_low_path_3 = os.path.join(self.images_aug_low_dir, name, f'{name}_3.bmp')
         img_aug_low_path_4 = os.path.join(self.images_aug_low_dir, name, f'{name}_4.bmp')
 
-        img_aug_high_path_1 = os.path.join(self.images_aug_high_dir, name, f'{name}_1.bmp')
+        img_aug_high_path_1 = os.path.join(self.images_aug_high_dir, name, f'{name}_1.bmp') # 长曝光，4个频段的四张照片，path_1~4分别对应4个频段的照片
         img_aug_high_path_2 = os.path.join(self.images_aug_high_dir, name, f'{name}_2.bmp')
         img_aug_high_path_3 = os.path.join(self.images_aug_high_dir, name, f'{name}_3.bmp')
         img_aug_high_path_4 = os.path.join(self.images_aug_high_dir, name, f'{name}_4.bmp')
@@ -173,9 +173,9 @@ class BasicDataset(Dataset):
         assert fenmu_mask_1.shape == fenmu_mask_2.shape == fenmu_mask_3.shape == fenmu_mask_4.shape, "All fenmu masks must have the same shape."
         assert img_1.shape == fenzi_mask_1.shape == fenmu_mask_1.shape, "All images and masks must have the same shape."
 
-        img = np.concatenate([img_1, img_2, img_3, img_4], axis=0)
-        img_aug = np.concatenate([img_aug_low_1, img_aug_high_1, img_aug_low_2, img_aug_high_2, img_aug_low_3, img_aug_high_3, img_aug_low_4, img_aug_high_4], axis=0)
-        mask = np.concatenate([fenzi_mask_1, fenmu_mask_1, fenzi_mask_2, fenmu_mask_2, fenzi_mask_3, fenmu_mask_3, fenzi_mask_4, fenmu_mask_4], axis=0)
+        img = np.concatenate([img_1, img_2, img_3, img_4], axis=0) # HDR GT，4个频段的四张照片，shape为[4, H, W]
+        img_aug = np.concatenate([img_aug_low_1, img_aug_high_1, img_aug_low_2, img_aug_high_2, img_aug_low_3, img_aug_high_3, img_aug_low_4, img_aug_high_4], axis=0) # 长短曝光的LDR，共8个通道，shape为[8, H, W]
+        mask = np.concatenate([fenzi_mask_1, fenmu_mask_1, fenzi_mask_2, fenmu_mask_2, fenzi_mask_3, fenmu_mask_3, fenzi_mask_4, fenmu_mask_4], axis=0) # S/C GT，分别有4个频段的四张照片，shape为[8, H, W]
 
         return {
             'image': torch.as_tensor(img.copy()).float().contiguous(),

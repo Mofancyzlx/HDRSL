@@ -11,7 +11,7 @@ from Attention_module import ChannelAttention_WH, SpatialAttention_WH, ChannelAt
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
-
+    # [12, H, W] → 3 × 3 Conv → [64, H, W] → 3 × 3 Conv → [64, H, W]， 空间尺寸不变，通道数增加，负责提取特征
     def __init__(self, in_channels, out_channels, mid_channels=None):
         super().__init__()
         if not mid_channels:
@@ -31,7 +31,7 @@ class DoubleConv(nn.Module):
 
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
-
+    # [64, H, W] → MaxPool → [64, H/2, W/2] → DoubleConv → [128, H/2, W/2]，空间尺寸减半，通道数增加，负责提取特征
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
@@ -45,7 +45,7 @@ class Down(nn.Module):
 
 class Up(nn.Module):
     """Upscaling then double conv"""
-
+    # [512, H/2, W/2] → Upsample → [256, H, W] (深层特征图) → Concatenate [256, H, W] (浅层特征图) → [512, H, W] → DoubleConv
     def __init__(self, in_channels, out_channels, bilinear=True):
         super().__init__()
 
@@ -90,7 +90,7 @@ class UNet(nn.Module):
         self.n_classes = n_classes
         self.bilinear = bilinear
 
-        self.inc = (DoubleConv(n_channels, 64))
+        self.inc = (DoubleConv(n_channels, 64)) # 输入 n channels → DoubleConv → 64 channels
         self.down1 = (Down(64, 128))
         self.down2 = (Down(128, 256))
         self.down3 = (Down(256, 512))
@@ -131,28 +131,31 @@ class UNet(nn.Module):
 
 
 class UNet_attention(UNet):
+    # Student model with attention mechanism
     def __init__(self, n_channels, n_classes, bilinear=False):
         super().__init__(n_channels, n_classes, bilinear)
-        self.inc1 = (DoubleConv(4, 32))
-        self.inc2 = (DoubleConv(4, 32))
+        self.inc1 = (DoubleConv(4, 32)) # 双曝光分支，短曝光 4 channels → DoubleConv → 32 channels
+        self.inc2 = (DoubleConv(4, 32)) # 双曝光分支，长曝光 4 channels → DoubleConv → 32 channels
         self.attention1 = ChannelAttention_WH(64, 4)
 
     def forward(self, x):
-        x_drak = x[:, [0, 2, 4, 6], :, :]
-        x_light = x[:, [1, 3, 5, 7], :, :]
+        x_drak = x[:, [0, 2, 4, 6], :, :] # 输入 x 为 LDR 图像, shape为[B, 8, H, W]。x[:, [0, 2, 4, 6], :, :] 取出短曝光图像，shape为[B, 4, H, W]
+        x_light = x[:, [1, 3, 5, 7], :, :] # x[:, [1, 3, 5, 7], :, :] 取出长曝光图像，shape为[B, 4, H, W]
         x_dark = self.inc1(x_drak)
         x_light = self.inc2(x_light)
         x1 = torch.cat([x_dark, x_light], dim=1)
-        x1, w_x1 = self.attention1(x1)
+        x1, w_x1 = self.attention1(x1) # Attention mechanism 用于融合短曝光和长曝光的特征图，shape为[B, 64, H, W]
+        # Encoder 
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
+        # Decoder
         x = self.up1(x5, x4)
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
-        logits = self.outc(x)
-        return logits, [x2, x3, x4, x5]
+        logits = self.outc(x) # 预测的 4 张 HDR fringe, shape为[B, 4, H, W]
+        return logits, [x2, x3, x4, x5] # [x2, x3, x4, x5] 是中间特征图，用于知识蒸馏
 
 

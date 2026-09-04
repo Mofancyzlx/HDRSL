@@ -187,13 +187,13 @@ class HDRSLDataset(Dataset):
                 self.ldr_10ms_dir
                 / sample_id
                 / f"{sample_id}_{file_index}.bmp"
-            )
+            )  # 短曝光，4个频段的四张照片
 
             ldr_40ms = _load_gray_image(
                 self.ldr_40ms_dir
                 / sample_id
                 / f"{sample_id}_{file_index}.bmp"
-            )
+            ) # 长曝光，4个频段的四张照片
 
             ldr_channels.extend(
                 [ldr_10ms, ldr_40ms]
@@ -207,7 +207,7 @@ class HDRSLDataset(Dataset):
                 self.hdr_dir
                 / sample_id
                 / f"{sample_id}_{file_index}.bmp"
-            )
+            ) # HDR Ground Truth，4个频段的四张照片
 
             hdr_channels.append(hdr)
 
@@ -219,13 +219,13 @@ class HDRSLDataset(Dataset):
                 self.sine_dir
                 / f"{sample_id}-{file_index}.mat",
                 "numerator",
-            )
+            ) # 正弦分量，4个频段的四张照片
 
             cosine = _load_mat_array(
                 self.cosine_dir
                 / f"{sample_id}-{file_index}.mat",
                 "denominator",
-            )
+            ) # 余弦分量，4个频段的四张照片
 
             sc_channels.extend([sine, cosine])
 
@@ -233,7 +233,7 @@ class HDRSLDataset(Dataset):
             self.absolute_phase_dir
             / f"{sample_id}.mat",
             "phase",
-        )
+        ) # 绝对相位，一张照片
 
         ldr = np.stack(
             ldr_channels,
@@ -279,17 +279,17 @@ class HDRSLDataset(Dataset):
 
             "ldr": torch.from_numpy(
                 ldr
-            ).float().contiguous(),
+            ).float().contiguous(),  # 短曝光和长曝光的LDR，共8个通道，shape为[8, H, W]
 
             "hdr_gt": torch.from_numpy(
                 hdr_gt
-            ).float().contiguous(),
+            ).float().contiguous(),  # HDR GT，4个频段的四张照片，shape为[4, H, W]
 
             "sc_gt": torch.from_numpy(
                 sc_gt
-            ).float().contiguous(),
+            ).float().contiguous(),  # S/C GT，多步相移图计算出来的 S/C 数值矩阵，shape为[8, H, W]
 
             "absolute_phase": torch.from_numpy(
                 absolute_phase
-            ).float().contiguous(),
+            ).float().contiguous(),  # 绝对相位，以最高频率 f64 的相位精度为基础，经过相位解模糊后的一张二维数值矩阵，shape为[H, W]
         }

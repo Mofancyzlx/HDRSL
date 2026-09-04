@@ -24,11 +24,11 @@ class ChannelAttention_WH(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        max_result = self.maxpool(x)
-        avg_result = self.avgpool(x)
+        max_result = self.maxpool(x) # [B, C, H, W] → [B, C, 1, 1]
+        avg_result = self.avgpool(x) # [B, C, H, W] → [B, C, 1, 1]
         max_out = self.se(max_result)
         avg_out = self.se(avg_result)
-        output = self.sigmoid(max_out + avg_out)
+        output = self.sigmoid(max_out + avg_out) # output: [B, C, 1, 1]， 用来表示每个通道（维度 C ）的重要性
         z = output * x + x
         return z, output * x
 

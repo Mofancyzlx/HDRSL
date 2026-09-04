@@ -38,14 +38,14 @@ def weights_init(m):
 
 def train_on_device(
         args, 
-        model_student,
-        model_teacher,
-        model_result,
-        device,
-        epochs: int = 5,
-        batch_size: int = 1,
-        learning_rate: float = 1e-5,
-        val_percent: float = 0.1
+        model_student,  # 学生模型
+        model_teacher,  # 教师模型
+        model_result,   # 结果模型
+        device,         # 训练设备
+        epochs: int = 5,            # 训练轮数
+        batch_size: int = 1,        # 批次大小
+        learning_rate: float = 1e-5, # 学习率
+        val_percent: float = 0.1    # 验证集比例
  ):
 
     # create dataset
@@ -121,8 +121,8 @@ def train_on_device(
             for i in tqdm(range(3)):
                 for batch in train_loader:
                     imgs = batch['image'].to(device)
-                    teacher_rec, _ = model_teacher(imgs)
-                    l2_loss_teacher = torch.sqrt(criterion_MSE(teacher_rec, imgs))
+                    teacher_rec, _ = model_teacher(imgs) # HDR GT, shape [B, 4, H, W] 的图片喂入 teacher
+                    l2_loss_teacher = torch.sqrt(criterion_MSE(teacher_rec, imgs)) # HDR GT 既是 teacher 的输入，也是 teacher 的输出
                     l1_loss_teacher = criterion_MAE(teacher_rec, imgs)
                     ssim_teacher = criterion_SSIM(teacher_rec, imgs)
                     loss_teacher = l2_loss_teacher + l1_loss_teacher + ssim_teacher
@@ -133,7 +133,7 @@ def train_on_device(
             for batch in train_loader:
                 imgs = batch['image']
                 true_masks = batch['mask']
-                imgs_aug = batch['image_aug']
+                imgs_aug = batch['image_aug'] # 4 channel LDR images, shape [B, 4, H, W], 这里似乎只使用了低曝光的四个频率分量的图片
                 # 判断输入是不是灰度图
                 assert imgs.shape[1] == 4, f'Network has been designed to work with 1 channel images, but received {imgs.shape[1]} channels'
                 assert imgs_aug.shape[1] == 4, f'Network has been designed to work with 1 channel images, but received {imgs.shape[1]} channels'
@@ -160,7 +160,7 @@ def train_on_device(
                 # result loss
                 l2_loss_result =  torch.sqrt(criterion_MSE(out, true_masks))
                 l1_loss_result = criterion_MAE(out, true_masks)
-                loss_result = l2_loss_result + l1_loss_result
+                loss_result = l2_loss_result + l1_loss_result # loss_results 中由于 out 带有 pred 的信息，所以 loss_result 不只是训练 Phase Net，它还会通过 pred 反向传播到 Student
 
                 #update 
                 if epoch > 10:
