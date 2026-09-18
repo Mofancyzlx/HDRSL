@@ -21,6 +21,7 @@ from unet import UNet, UNet_attention
 from utils.hdrsl_dataset import HDRSLDataset
 from utils.hdrsl_split import split_sample_ids
 from utils.phase import (
+    FREQUENCIES,
     sc_to_wrapped_phase,
     sc_to_absolute_phase,
 )
@@ -96,6 +97,51 @@ def circular_phase_mae(
     return circular_error.flatten(1).mean(dim=1)
 
 
+def progressive_unwrap_stages(
+    wrapped: torch.Tensor,
+    frequencies=FREQUENCIES,
+):
+    channel_dim = wrapped.ndim - 3
+
+    phases = torch.unbind(
+        wrapped,
+        dim=channel_dim,
+    )
+
+    stages = []
+    orders = []
+
+    absolute = phases[0]
+    stages.append(absolute)
+
+    for i in range(1, len(frequencies)):
+        ratio = (
+            frequencies[i]
+            / frequencies[i - 1]
+        )
+
+        wrapped_high = phases[i]
+
+        fringe_order = torch.round(
+            (
+                ratio * absolute
+                - wrapped_high
+            )
+            / (2.0 * torch.pi)
+        )
+
+        orders.append(fringe_order)
+
+        absolute = (
+            wrapped_high
+            + 2.0 * torch.pi * fringe_order
+        )
+
+        stages.append(absolute)
+
+    return stages, orders
+
+
 def summarize(values: list[float]):
     x = np.asarray(
         values,
@@ -162,6 +208,15 @@ def evaluate(
         "wrapped_phase_direct_mae": [],
         "absolute_phase_mae": [],
     }
+
+    for freq in FREQUENCIES[1:]:
+        results[
+            f"order_mismatch_f{freq}"
+        ] = []
+
+    for freq in FREQUENCIES:
+        results[f"wrapped_f{freq}_mae"] = []
+        results[f"unwrap_f{freq}_mae"] = []
 
     per_sample_results = []
 
@@ -276,6 +331,76 @@ def evaluate(
         )
 
         # ----------------------------------------------------
+        # Diagnostic 1:
+        # wrapped-phase MAE at each frequency
+        # ----------------------------------------------------
+
+        wrapped_freq_mae = []
+
+        for i, freq in enumerate(FREQUENCIES):
+            mae = circular_phase_mae(
+                wrapped_pred[:, i],
+                wrapped_gt[:, i],
+            )
+
+            wrapped_freq_mae.append(mae)
+
+
+        # ----------------------------------------------------
+        # Diagnostic 2:
+        # progressive hierarchical unwrap
+        # ----------------------------------------------------
+
+        pred_stages, pred_orders = (
+            progressive_unwrap_stages(
+                wrapped_pred
+            )
+        )
+
+        gt_stages, gt_orders = (
+            progressive_unwrap_stages(
+                wrapped_gt
+            )
+        )
+
+        order_mismatch_ratio = []
+
+        for i in range(len(FREQUENCIES) - 1):
+
+            pred_order = pred_orders[i]
+            gt_order = gt_orders[i]
+
+            valid = (
+                torch.isfinite(pred_order)
+                & torch.isfinite(gt_order)
+            )
+
+            mismatch = (
+                pred_order != gt_order
+            ) & valid
+
+            ratio = (
+                mismatch.flatten(1).sum(dim=1)
+                / valid.flatten(1)
+                .sum(dim=1)
+                .clamp_min(1)
+            )
+
+            order_mismatch_ratio.append(
+                ratio.float()
+            )
+
+        unwrap_freq_mae = []
+
+        for i, freq in enumerate(FREQUENCIES):
+            mae = per_sample_finite_mae(
+                pred_stages[i],
+                gt_stages[i],
+            )
+
+            unwrap_freq_mae.append(mae)
+
+        # ----------------------------------------------------
         # Absolute phase
         # ----------------------------------------------------
 
@@ -315,6 +440,37 @@ def evaluate(
         ]:
             results[key].extend(
                 values.detach()
+                .cpu()
+                .tolist()
+            )
+
+        for i, freq in enumerate(FREQUENCIES):
+            results[
+                f"wrapped_f{freq}_mae"
+            ].extend(
+                wrapped_freq_mae[i]
+                .detach()
+                .cpu()
+                .tolist()
+            )
+
+            results[
+                f"unwrap_f{freq}_mae"
+            ].extend(
+                unwrap_freq_mae[i]
+                .detach()
+                .cpu()
+                .tolist()
+            )
+
+        for i, freq in enumerate(
+            FREQUENCIES[1:]
+        ):
+            results[
+                f"order_mismatch_f{freq}"
+            ].extend(
+                order_mismatch_ratio[i]
+                .detach()
                 .cpu()
                 .tolist()
             )
@@ -1049,6 +1205,20 @@ def main():
         "absolute_phase_mae":
             "Absolute Phase MAE",
     }
+
+    for freq in FREQUENCIES:
+        display_names[
+            f"wrapped_f{freq}_mae"
+        ] = f"Wrapped f={freq} MAE"
+
+        display_names[
+            f"unwrap_f{freq}_mae"
+        ] = f"Unwrap -> f={freq} MAE"
+
+    for freq in FREQUENCIES[1:]:
+        display_names[
+            f"order_mismatch_f{freq}"
+        ] = f"Order mismatch -> f={freq}"
 
     for key, metric in metrics.items():
         print(
